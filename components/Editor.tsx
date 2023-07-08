@@ -41,7 +41,6 @@ const CustomUi = () => {
     const newPos = bound
       ? [bound.x + bound.w + 200, bound.y + bound.h / 2]
       : [200, 200];
-    console.log(bound, newPos);
 
     // generate new sticky + content
     const id = `shape:${nanoid()}` as TLShapeId;

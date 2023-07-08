@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-//  "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";
-const GPT_KEY = "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";
+const GPT_KEY = process.env.OPENAI_TOKEN
 
 export default async function handler(
   req: NextApiRequest,
@@ -29,6 +28,7 @@ export default async function handler(
       }),
     });
     const data = await response.json();
+    console.log(data);
     res.status(200).json({
       message: "success",
       data,
