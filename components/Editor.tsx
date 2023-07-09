@@ -1,6 +1,7 @@
 import {
   Canvas,
   ContextMenu,
+  TLArrowShape,
   TLNoteShape,
   TLShapeId,
   TldrawEditor,
@@ -32,6 +33,7 @@ export default function CustomUiExample() {
 const CustomUi = () => {
   const [page, setPage] = useState<"root" | "projects">("root");
   const [open, setOpen] = useState<boolean>(false);
+  const [linkedListMode, setLinkedListMode] = useState<boolean>(false);
   const [search, setSearch] = useState("");
   const editor = useEditor();
 
@@ -203,25 +205,73 @@ const CustomUi = () => {
           },
         ],
       },
-      // {
-      //   heading: "Editing experience",
-      //   id: "editor",
-      //   items: [
-      //     {
-      //       id: "camera",
-      //       children: "Cursor Camera",
-      //       icon: "CameraIcon",
-      //       closeOnSelect: true,
-      //       onClick: () => {
-      //         console.log("camera!");
-      //       },
-      //     },
-      //   ],
-      // },
+      {
+        heading: "Editing experience",
+        id: "editor",
+        items: [
+          // {
+          //   id: "camera",
+          //   children: "Cursor Camera",
+          //   icon: "CameraIcon",
+          //   closeOnSelect: true,
+          //   onClick: () => {
+          //     console.log("camera!");
+          //   },
+          // },
+          {
+            id: "linkedlist",
+            children: "Linked List selection",
+            icon: "LinkIcon",
+            closeOnSelect: true,
+            onClick: () => {
+              setLinkedListMode(!linkedListMode);
+            },
+          },
+        ],
+      },
     ],
     search
   );
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (linkedListMode) {
+        if (
+          editor.selectedShapes.length === 1 &&
+          editor.selectedShapes[0].type === "note"
+        ) {
+          let list = [] as TLShapeId[];
+          const arrows = editor.shapesArray.filter((s) => s.type === "arrow");
+
+          // WIP: use a set() to avoid circule
+          const dfs = (shapeID: TLShapeId) => {
+            if (list.find((s) => s === shapeID)) return;
+            list.push(shapeID);
+            const nextLevelShapeID = arrows
+              .filter(
+                (arrow) =>
+                  // @ts-ignore
+                  arrow.props.start.boundShapeId === shapeID &&
+                  // @ts-ignore
+                  arrow.props.end.boundShapeId !== null
+              )
+              // @ts-ignore
+              .map((a) => a.props.end.boundShapeId) as TLShapeId[];
+
+            for (let n of nextLevelShapeID) {
+              dfs(n);
+            }
+          };
+          dfs(editor.selectedShapes[0].id);
+          editor.select(...list);
+        }
+      }
+    }, 1000 / 60);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [editor, linkedListMode]);
   return (
     <>
       <CommandPalette
