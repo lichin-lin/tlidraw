@@ -35,6 +35,9 @@ const CustomUi = () => {
   const [search, setSearch] = useState("");
   const editor = useEditor();
 
+  /**
+   * AI: handleSummarizer
+   */
   const handleSummarizer = async () => {
     // set loading status = true
 
@@ -93,6 +96,67 @@ const CustomUi = () => {
       editor.selectNone();
     }
   };
+
+  /**
+   * AI: handle text to image
+   */
+  const handleText2Image = async () => {
+    const prompt = (
+      editor.selectedShapes.filter((s) => s.type === "note") as TLNoteShape[]
+    )
+      .map((s) => s.props?.text)
+      .join(",");
+
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const response = await fetch("/api/text2Image", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt: prompt }),
+    });
+
+    let prediction = await response.json();
+    if (response.status !== 201) {
+      console.log(prediction.detail);
+      return;
+    }
+    let urls = [];
+    while (
+      prediction.status !== "succeeded" &&
+      prediction.status !== "failed"
+    ) {
+      await sleep(1000);
+      const response = await fetch(`/api/text2Image/${prediction.id}`);
+      prediction = await response.json();
+      if (response.status !== 200) {
+        console.log(prediction.detail);
+        return;
+      }
+      console.log(prediction.logs);
+
+      if (prediction.status === "succeeded") {
+        console.log(prediction.output);
+        urls = prediction.output;
+      }
+    }
+    // get result + apply to canvas
+    const blobs = await Promise.all(
+      urls.map(async (url: string) => await (await fetch(url)).blob())
+    );
+    const files = blobs.map(
+      (blob) => new File([blob], "tldrawFile", { type: blob.type })
+    );
+    editor.mark("paste");
+
+    await editor.putExternalContent({
+      type: "files",
+      files,
+      ignoreParent: false,
+    });
+
+    urls.forEach((url: string) => URL.revokeObjectURL(url));
+  };
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.metaKey && e.key === "k") {
@@ -111,6 +175,7 @@ const CustomUi = () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
   // https://heroicons.com/
   const filteredItems = filterItems(
     [
@@ -129,30 +194,30 @@ const CustomUi = () => {
           },
           {
             id: "text2img",
-            children: "Text to Image",
+            children: "Text to Tile Image",
             icon: "SparklesIcon",
             closeOnSelect: true,
             onClick: () => {
-              console.log("ai!");
+              handleText2Image();
             },
           },
         ],
       },
-      {
-        heading: "Editing experience",
-        id: "editor",
-        items: [
-          {
-            id: "camera",
-            children: "Cursor Camera",
-            icon: "CameraIcon",
-            closeOnSelect: true,
-            onClick: () => {
-              console.log("camera!");
-            },
-          },
-        ],
-      },
+      // {
+      //   heading: "Editing experience",
+      //   id: "editor",
+      //   items: [
+      //     {
+      //       id: "camera",
+      //       children: "Cursor Camera",
+      //       icon: "CameraIcon",
+      //       closeOnSelect: true,
+      //       onClick: () => {
+      //         console.log("camera!");
+      //       },
+      //     },
+      //   ],
+      // },
     ],
     search
   );
