@@ -2,13 +2,18 @@ import {
   Canvas,
   ContextMenu,
   TLArrowShape,
+  TLAssetId,
+  TLFrameShape,
+  TLImageShape,
   TLNoteShape,
   TLShapeId,
   TldrawEditor,
   TldrawUi,
   defaultShapes,
   defaultTools,
+  getSvgAsImage,
   useEditor,
+  useToasts,
 } from "@tldraw/tldraw";
 import "react-cmdk/dist/cmdk.css";
 import CommandPalette, { filterItems, getItemIndex } from "react-cmdk";
@@ -36,7 +41,36 @@ const CustomUi = () => {
   const [linkedListMode, setLinkedListMode] = useState<boolean>(false);
   const [search, setSearch] = useState("");
   const editor = useEditor();
+  const { addToast } = useToasts();
 
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const blobToBase64 = (blob: Blob) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    return new Promise((resolve) => {
+      reader.onloadend = () => {
+        resolve(reader.result);
+      };
+    });
+  };
+  const pasteImageUrlsToCanvas = async (urls: string[]) => {
+    // get result + apply to canvas
+    const blobs = await Promise.all(
+      urls.map(async (url: string) => await (await fetch(url)).blob())
+    );
+    const files = blobs.map(
+      (blob) => new File([blob], "tldrawFile", { type: blob.type })
+    );
+    editor.selectNone();
+    editor.mark("paste");
+    await editor.putExternalContent({
+      type: "files",
+      files,
+      ignoreParent: false,
+    });
+
+    urls.forEach((url: string) => URL.revokeObjectURL(url));
+  };
   /**
    * AI: handleSummarizer
    */
@@ -98,6 +132,125 @@ const CustomUi = () => {
       editor.selectNone();
     }
   };
+  /**
+   * AI: remove bg
+   */
+  const handleRemoveBg = async () => {
+    const image = editor.selectedShapes.filter(
+      (s) => s.type === "image"
+    ) as TLImageShape[];
+    if (!image) return;
+    const asset = editor.getAssetById(image[0].props.assetId as TLAssetId);
+    const assetData = asset?.props.src;
+
+    const response = await fetch("/api/removebg", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image: assetData,
+      }),
+    });
+
+    let prediction = await response.json();
+    if (response.status !== 201) {
+      console.log(prediction.detail);
+      return;
+    }
+    editor.selectNone();
+    let urls = [] as string[];
+    while (
+      prediction.status !== "succeeded" &&
+      prediction.status !== "failed"
+    ) {
+      await sleep(1000);
+      const response = await fetch(`/api/removebg/${prediction.id}`);
+      prediction = await response.json();
+      if (response.status !== 200) {
+        console.log(prediction.detail);
+        return;
+      }
+      console.log(prediction.logs);
+
+      if (prediction.status === "succeeded") {
+        // console.log(prediction.output);
+        urls = [prediction.output];
+      }
+      await pasteImageUrlsToCanvas(urls);
+    }
+  };
+  /**
+   * AI: handle doodle to image
+   */
+  const handleDoodle2Image = async () => {
+    const frame = editor.selectedShapes.filter(
+      (s) => s.type === "frame"
+    )?.[0] as TLFrameShape;
+    if (!frame) return;
+
+    // prompt
+    const prompt = frame.props.name;
+
+    // turn frame and its content into base64 image by using editor api
+    const svg = await editor.getSvg([frame.id], {
+      scale: 1,
+      background: editor.instanceState.exportBackground,
+    });
+    if (!svg) throw new Error("Could not construct SVG.");
+    const image = await getSvgAsImage(svg, {
+      type: "png",
+      quality: 1,
+      scale: 2,
+    });
+    if (!image) {
+      addToast({
+        id: "export-fail",
+        title: "Ooops, something went wrong!",
+        description: `We can't handle the doodle to image task...`,
+      });
+      return;
+    }
+    const dataURL = await blobToBase64(image); // URL.createObjectURL(image);
+
+    const response = await fetch("/api/doodle2Image", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        image: dataURL,
+      }),
+    });
+
+    let prediction = await response.json();
+    if (response.status !== 201) {
+      console.log(prediction.detail);
+      return;
+    }
+    let urls = [] as string[];
+    editor.selectNone();
+    while (
+      prediction.status !== "succeeded" &&
+      prediction.status !== "failed"
+    ) {
+      await sleep(1000);
+      const response = await fetch(`/api/doodle2Image/${prediction.id}`);
+      prediction = await response.json();
+      if (response.status !== 200) {
+        console.log(prediction.detail);
+        return;
+      }
+      console.log(prediction.logs);
+
+      if (prediction.status === "succeeded") {
+        // console.log(prediction.output);
+        urls = [prediction.output[1]];
+      }
+      await pasteImageUrlsToCanvas(urls);
+    }
+  };
 
   /**
    * AI: handle text to image
@@ -109,7 +262,6 @@ const CustomUi = () => {
       .map((s) => s.props?.text)
       .join(",");
 
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const response = await fetch("/api/text2Image", {
       method: "POST",
       headers: {
@@ -141,23 +293,8 @@ const CustomUi = () => {
         console.log(prediction.output);
         urls = prediction.output;
       }
+      await pasteImageUrlsToCanvas(urls);
     }
-    // get result + apply to canvas
-    const blobs = await Promise.all(
-      urls.map(async (url: string) => await (await fetch(url)).blob())
-    );
-    const files = blobs.map(
-      (blob) => new File([blob], "tldrawFile", { type: blob.type })
-    );
-    editor.mark("paste");
-
-    await editor.putExternalContent({
-      type: "files",
-      files,
-      ignoreParent: false,
-    });
-
-    urls.forEach((url: string) => URL.revokeObjectURL(url));
   };
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -187,20 +324,38 @@ const CustomUi = () => {
         items: [
           {
             id: "summarizer",
-            children: "Summarizer",
+            children: "Notes Summarizer",
             icon: "SparklesIcon",
             closeOnSelect: true,
             onClick: () => {
               handleSummarizer();
             },
           },
+          // {
+          //   id: "text2img",
+          //   children: "Notes to Tile Image",
+          //   icon: "SparklesIcon",
+          //   closeOnSelect: true,
+          //   onClick: () => {
+          //     handleText2Image();
+          //   },
+          // },
           {
-            id: "text2img",
-            children: "Text to Tile Image",
+            id: "doodle2img",
+            children: "Doodle to Image",
             icon: "SparklesIcon",
             closeOnSelect: true,
             onClick: () => {
-              handleText2Image();
+              handleDoodle2Image();
+            },
+          },
+          {
+            id: "removebg",
+            children: "Remove background",
+            icon: "SparklesIcon",
+            closeOnSelect: true,
+            onClick: () => {
+              handleRemoveBg();
             },
           },
         ],
