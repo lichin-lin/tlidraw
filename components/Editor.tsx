@@ -6,6 +6,7 @@ import {
   TLFrameShape,
   TLImageShape,
   TLNoteShape,
+  TLShape,
   TLShapeId,
   TldrawEditor,
   TldrawUi,
@@ -17,9 +18,66 @@ import {
 } from "@tldraw/tldraw";
 import "react-cmdk/dist/cmdk.css";
 import CommandPalette, { filterItems, getItemIndex } from "react-cmdk";
+import { Joystick } from "react-joystick-component";
 import { nanoid } from "nanoid";
 import { useState, useEffect } from "react";
 
+type JoystickDirection = "FORWARD" | "RIGHT" | "LEFT" | "BACKWARD";
+type JoystickStatus = "move" | "stop" | "start";
+
+export interface IJoystickUpdateEvent {
+  type: JoystickStatus;
+  x: number | null;
+  y: number | null;
+  direction: JoystickDirection | null;
+  distance: number; // Percentile 0-100% of joystick
+}
+
+// metric helper
+const calculateDegree = (cx: number, cy: number, px: number, py: number) => {
+  // Calculate the difference in coordinates
+  var dx = px - cx;
+  var dy = py - cy;
+
+  // Calculate the angle in radians
+  var rad = Math.atan2(dy, dx);
+
+  // Convert the angle to degrees
+  var deg = rad * (180 / Math.PI);
+
+  // Adjust the angle to be between 0 and 360
+  if (deg < 0) {
+    deg = 360 + deg;
+  }
+
+  return deg;
+};
+
+function rotatePoint(
+  cx: number,
+  cy: number,
+  angle: number,
+  px: number,
+  py: number
+) {
+  var rad = angle * (Math.PI / 180); // Convert to radians
+  var cosAngle = Math.cos(rad);
+  var sinAngle = Math.sin(rad);
+
+  //Translate point back to origin
+  px -= cx;
+  py -= cy;
+
+  // Perform rotation
+  var nx = cosAngle * px - sinAngle * py;
+  var ny = sinAngle * px + cosAngle * py;
+
+  // Translate point back:
+  px = nx + cx;
+  py = ny + cy;
+
+  return [px, py];
+}
 export default function CustomUiExample() {
   return (
     <div className="tldraw__editor">
@@ -38,6 +96,9 @@ export default function CustomUiExample() {
 const CustomUi = () => {
   const [page, setPage] = useState<"root" | "projects">("root");
   const [open, setOpen] = useState<boolean>(false);
+  const [showJoystick, setShowJoystick] = useState<boolean>(true);
+  const [joystickStatus, setJoystickStatus] = useState<JoystickStatus>("stop");
+  const [shapeData, setShapeData] = useState<any>([]);
   const [linkedListMode, setLinkedListMode] = useState<boolean>(false);
   const [search, setSearch] = useState("");
   const editor = useEditor();
@@ -296,6 +357,47 @@ const CustomUi = () => {
       await pasteImageUrlsToCanvas(urls);
     }
   };
+
+  /**
+   * Editing experience: joystick
+   */
+  const handleJoystickMove = (event: IJoystickUpdateEvent) => {
+    setJoystickStatus(event.type);
+    // @ts-ignore
+    const deg = calculateDegree(0, 0, event.x, event.y);
+    if (
+      editor.selectedShapes.length === 1 &&
+      editor.selectedShapes[0].type === "note"
+    ) {
+      const target = editor.selectedShapes[0];
+      shapesMoveDegreeBaseOn(target, -1 * deg, shapeData);
+    }
+  };
+  const shapesMoveDegreeBaseOn = (
+    target: TLShape,
+    degree: number,
+    shapes: TLShape[]
+  ) => {
+    for (let shape of shapes) {
+      if (shape) {
+        const result = rotatePoint(
+          target.x,
+          target.y,
+          degree,
+          shape.x,
+          shape.y
+        );
+        editor.updateShapes([
+          {
+            id: shape.id,
+            type: "note",
+            x: result[0],
+            y: result[1],
+          },
+        ]);
+      }
+    }
+  };
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.metaKey && e.key === "k") {
@@ -382,11 +484,73 @@ const CustomUi = () => {
               setLinkedListMode(!linkedListMode);
             },
           },
+          {
+            id: "joystick",
+            children: "Joystick control",
+            icon: "CursorArrowRippleIcon",
+            closeOnSelect: true,
+            onClick: () => {
+              setShowJoystick(!showJoystick);
+              // moveDegree(20);
+            },
+          },
         ],
       },
     ],
     search
   );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (showJoystick) {
+        if (joystickStatus !== "stop") return;
+        if (
+          editor.selectedShapes.length === 1 &&
+          editor.selectedShapes[0].type === "note"
+        ) {
+          // find all notes
+          const target = editor.selectedShapes[0];
+          // console.log(target);
+
+          const shapeData = editor.shapesArray
+            .filter(
+              (s) =>
+                s.type === "arrow" &&
+                // @ts-ignore
+                (s.props.start.boundShapeId === target.id ||
+                  // @ts-ignore
+                  s.props.end.boundShapeId === target.id)
+            )
+            .map((a) =>
+              // @ts-ignore
+              [a.props.start.boundShapeId, a.props.end.boundShapeId].find(
+                (id) => id !== target.id
+              )
+            )
+            .map((id) => editor.getShapeById(id))
+            .map((shape) => ({
+              id: shape?.id,
+              x: shape?.x,
+              y: shape?.y,
+              // @ts-ignore
+              degFromCenter: calculateDegree(
+                target.x,
+                target.y,
+                // @ts-ignore
+                shape.x,
+                // @ts-ignore
+                shape.y
+              ),
+            }));
+          setShapeData(shapeData);
+          // calc the degree for each one of them
+        }
+      }
+    }, 1000 / 60);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [editor, joystickStatus]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -454,6 +618,27 @@ const CustomUi = () => {
           )}
         </CommandPalette.Page>
       </CommandPalette>
+      {showJoystick && (
+        <div
+          id="joystick-wrapper"
+          style={{
+            position: "absolute",
+            right: 64,
+            bottom: 64,
+            zIndex: 9999,
+          }}
+        >
+          <Joystick
+            size={100}
+            sticky={false}
+            baseColor="rgb(237, 240, 242)"
+            stickColor="rgb(255, 255, 255)"
+            // @ts-ignore
+            move={handleJoystickMove}
+            stop={() => setJoystickStatus("stop")}
+          ></Joystick>
+        </div>
+      )}
     </>
   );
 };

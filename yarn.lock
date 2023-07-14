@@ -2884,6 +2884,11 @@ react-is@^16.13.1:
   resolved "https://registry.yarnpkg.com/react-is/-/react-is-16.13.1.tgz#789729a4dc36de2999dc156dd6c1d9c18cea56a4"
   integrity sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==
 
+react-joystick-component@^6.2.1:
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/react-joystick-component/-/react-joystick-component-6.2.1.tgz#3efed68fa3da03afb7e45d0d6e9d58f9b0c0cca0"
+  integrity sha512-0G5Y5aX4hNuXB3xJCwz6Q+nYQOtC6kprNGKmZxmfoPvhepNYUiid0DbLEGZxmr/UKip3S/LUbcQUobtRCuB8IQ==
+
 react-remove-scroll-bar@^2.3.3:
   version "2.3.4"
   resolved "https://registry.yarnpkg.com/react-remove-scroll-bar/-/react-remove-scroll-bar-2.3.4.tgz#53e272d7a5cb8242990c7f144c44d8bd8ab5afd9"
