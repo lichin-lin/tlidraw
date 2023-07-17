@@ -31,3 +31,8 @@ body {
   border: 1px solid #ddd !important;
   border-radius: 50%;
 }
+
+.tl-svg-container path {
+  fill-opacity: 1;
+  filter: url(#pencilTexture);
+}
