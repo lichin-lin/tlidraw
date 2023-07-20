@@ -116,6 +116,11 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz#b520529ec21d8e5945a1851dfd1c32e94e39ff45"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
+"@imgly/background-removal@^1.0.6":
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/@imgly/background-removal/-/background-removal-1.0.6.tgz#03bd772c027347ae7155bd3813a1796f179858a9"
+  integrity sha512-ExO82TiTj0HTEMsTUCQ6krCbZxgr5ao2G5ktizD3YpeRxiHMEZeH7AWDDho8mNcw8kgtjF9geHLAhiW9CQ8dUA==
+
 "@jridgewell/gen-mapping@^0.3.0":
   version "0.3.3"
   resolved "https://registry.yarnpkg.com/@jridgewell/gen-mapping/-/gen-mapping-0.3.3.tgz#7e02e6eb5df901aaedb08514203b096614024098"

@@ -17,6 +17,7 @@ import {
   useToasts,
 } from "@tldraw/tldraw";
 import "react-cmdk/dist/cmdk.css";
+import imglyRemoveBackground, { Config } from "@imgly/background-removal";
 import CommandPalette, { filterItems, getItemIndex } from "react-cmdk";
 import { Joystick } from "react-joystick-component";
 import { nanoid } from "nanoid";
@@ -96,7 +97,7 @@ export default function CustomUiExample() {
 const CustomUi = () => {
   const [page, setPage] = useState<"root" | "projects">("root");
   const [open, setOpen] = useState<boolean>(false);
-  const [showJoystick, setShowJoystick] = useState<boolean>(true);
+  const [showJoystick, setShowJoystick] = useState<boolean>(false);
   const [crayonEffect, setCrayonEffect] = useState<boolean>(false);
   const [joystickStatus, setJoystickStatus] = useState<JoystickStatus>("stop");
   const [shapeData, setShapeData] = useState<any>([]);
@@ -198,49 +199,35 @@ const CustomUi = () => {
    * AI: remove bg
    */
   const handleRemoveBg = async () => {
+    // process start
+    let start = Date.now();
     const image = editor.selectedShapes.filter(
       (s) => s.type === "image"
     ) as TLImageShape[];
     if (!image) return;
     const asset = editor.getAssetById(image[0].props.assetId as TLAssetId);
-    const assetData = asset?.props.src;
+    const assetData = asset?.props.src as string;
 
-    const response = await fetch("/api/removebg", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const config: Config = {
+      fetchArgs: {},
+      debug: true,
+      // publicPath: "https://cdn.glitch.me/58816696-88a1-460f-851a-243a2c7022e5/",
+      proxyToWorker: true,
+      model: "small",
+      progress: (key, current, total) => {
+        console.log(`Downloading ${key}: ${current} of ${total}`);
       },
-      body: JSON.stringify({
-        image: assetData,
-      }),
-    });
+    };
 
-    let prediction = await response.json();
-    if (response.status !== 201) {
-      console.log(prediction.detail);
-      return;
-    }
-    editor.selectNone();
-    let urls = [] as string[];
-    while (
-      prediction.status !== "succeeded" &&
-      prediction.status !== "failed"
-    ) {
-      await sleep(1000);
-      const response = await fetch(`/api/removebg/${prediction.id}`);
-      prediction = await response.json();
-      if (response.status !== 200) {
-        console.log(prediction.detail);
-        return;
-      }
-      console.log(prediction.logs);
-
-      if (prediction.status === "succeeded") {
-        // console.log(prediction.output);
-        urls = [prediction.output];
-      }
+    imglyRemoveBackground(assetData, config).then(async (blob: Blob) => {
+      // The result is a blob encoded as PNG. It can be converted to an URL to be used as HTMLImage.src
+      const url = URL.createObjectURL(blob);
+      const urls = [url];
       await pasteImageUrlsToCanvas(urls);
-    }
+      // process end
+      let timeTaken = Date.now() - start;
+      console.log(`timeTaken for removebg: ${timeTaken}`);
+    });
   };
   /**
    * AI: handle doodle to image
@@ -605,7 +592,7 @@ const CustomUi = () => {
     <>
       {/* Sketch effect */}
       {crayonEffect && (
-        <svg style={{ width: 0, height: 0, position: 'absolute' }}>
+        <svg style={{ width: 0, height: 0, position: "absolute" }}>
           <defs>
             <filter
               x="0%"
