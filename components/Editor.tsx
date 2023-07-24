@@ -386,6 +386,48 @@ const CustomUi = () => {
       }
     }
   };
+
+  const setBeautifulArrowCurve = () => {
+    const arrows = editor.selectedShapes.filter(
+      (s) =>
+        s.type === "arrow" &&
+        // @ts-ignore
+        s.props.start && s.props.start.type === "binding" && s.props.end.type === "binding"
+    ) as TLArrowShape[];
+    if (arrows.length) {
+      const _arrows = arrows
+        .map((a) => ({
+          ...a,
+          dis:
+            // @ts-ignore
+            (editor?.getShapeById(a.props.start?.boundShapeId)?.y - editor?.getShapeById(a.props.end?.boundShapeId)?.y) ** 2 || 0,
+        }))
+        .sort((a, b) => a.dis - b.dis)
+        .map(({ dis, ...a }, index) => ({
+          ...a,
+          props: {
+            ...a.props,
+            bend: (100 * index) / arrows.length,
+            start: {
+              ...a.props.start,
+              normalizedAnchor: {
+                x: 0.5,
+                y: 0.5,
+              },
+            },
+            end: {
+              ...a.props.end,
+              normalizedAnchor: {
+                x: 0.5,
+                y: 0.5,
+              },
+            },
+          },
+        }));
+      // and give curve level
+      editor.updateShapes(_arrows);
+    }
+  };
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.metaKey && e.key === "k") {
@@ -489,6 +531,15 @@ const CustomUi = () => {
             closeOnSelect: true,
             onClick: () => {
               setCrayonEffect(!crayonEffect);
+            },
+          },
+          {
+            id: "arrow",
+            children: "Arrow - Beautiful curve",
+            icon: "ArrowRightIcon",
+            closeOnSelect: true,
+            onClick: () => {
+              setBeautifulArrowCurve();
             },
           },
         ],
