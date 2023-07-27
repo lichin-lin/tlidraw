@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@imgly/background-removal": "^1.0.6",
-    "@tldraw/tldraw": "2.0.0-canary.83a391b46bff",
+    "@tldraw/tldraw": "2.0.0-alpha.14",
     "@types/node": "20.3.1",
     "@types/react": "18.2.12",
     "@types/react-dom": "18.2.5",

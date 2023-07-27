@@ -1,6 +1,7 @@
 import {
   Canvas,
   ContextMenu,
+  createTLStore,
   TLArrowShape,
   TLAssetId,
   TLFrameShape,
@@ -15,13 +16,15 @@ import {
   getSvgAsImage,
   useEditor,
   useToasts,
+  Tldraw,
 } from "@tldraw/tldraw";
+import { throttle } from "@tldraw/utils";
 import "react-cmdk/dist/cmdk.css";
 import imglyRemoveBackground, { Config } from "@imgly/background-removal";
 import CommandPalette, { filterItems, getItemIndex } from "react-cmdk";
 import { Joystick } from "react-joystick-component";
 import { nanoid } from "nanoid";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 
 type JoystickDirection = "FORWARD" | "RIGHT" | "LEFT" | "BACKWARD";
 type JoystickStatus = "move" | "stop" | "start";
@@ -79,17 +82,77 @@ function rotatePoint(
 
   return [px, py];
 }
+
+const PERSISTENCE_KEY = "tldraw";
+
 export default function CustomUiExample() {
+  const [store] = useState(() => createTLStore({ shapes: defaultShapes }));
+  const [loadingState, setLoadingState] = useState<
+    | { status: "loading" }
+    | { status: "ready" }
+    | { status: "error"; error: string }
+  >({
+    status: "loading",
+  });
+  useLayoutEffect(() => {
+    setLoadingState({ status: "loading" });
+
+    // Get persisted data from local storage
+    const persistedSnapshot = localStorage.getItem(PERSISTENCE_KEY);
+    console.log(persistedSnapshot);
+
+    if (persistedSnapshot) {
+      try {
+        const snapshot = JSON.parse(persistedSnapshot);
+        store.loadSnapshot(snapshot);
+        setLoadingState({ status: "ready" });
+      } catch (error: any) {
+        setLoadingState({ status: "error", error: error.message }); // Something went wrong
+      }
+    } else {
+      setLoadingState({ status: "ready" }); // Nothing persisted, continue with the empty store
+    }
+
+    // Each time the store changes, run the (debounced) persist function
+    const cleanupFn = store.listen(
+      throttle(() => {
+        const snapshot = store.getSnapshot();
+        localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(snapshot));
+      }, 500)
+    );
+
+    return () => {
+      cleanupFn();
+    };
+  }, [store]);
+
+  if (loadingState.status === "loading") {
+    return (
+      <div className="tldraw__editor">
+        <h2>Loading...</h2>
+      </div>
+    );
+  }
+
+  if (loadingState.status === "error") {
+    return (
+      <div className="tldraw__editor">
+        <h2>Error!</h2>
+        <p>{loadingState.error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="tldraw__editor">
-      <TldrawEditor shapes={defaultShapes} tools={defaultTools} autoFocus>
+      <Tldraw store={store} autoFocus hideUi={true}>
         <TldrawUi>
           <ContextMenu>
             <Canvas />
             <CustomUi />
           </ContextMenu>
         </TldrawUi>
-      </TldrawEditor>
+      </Tldraw>
     </div>
   );
 }
@@ -386,7 +449,23 @@ const CustomUi = () => {
       }
     }
   };
+  const getIntersection = () => {
+    const arrows = editor.selectedShapes.filter(
+      (s) =>
+        s.type === "arrow" &&
+        // @ts-ignore
+        s.props.start && s.props.start.type === "binding" && s.props.end.type === "binding"
+    ) as TLArrowShape[];
 
+    if (arrows.length) {
+      const pathData = arrows.map((a) => {
+        const domID = a.id;
+        return document
+          .getElementById(domID)
+          ?.children[1]?.getAttribute("d") as string;
+      });
+    }
+  };
   const setBeautifulArrowCurve = () => {
     const arrows = editor.selectedShapes.filter(
       (s) =>
@@ -400,7 +479,8 @@ const CustomUi = () => {
           ...a,
           dis:
             // @ts-ignore
-            (editor?.getShapeById(a.props.start?.boundShapeId)?.y - editor?.getShapeById(a.props.end?.boundShapeId)?.y) ** 2 || 0,
+            (editor?.getShapeById(a.props.start?.boundShapeId)?.y - editor?.getShapeById(a.props.end?.boundShapeId)?.y) **
+              2 || 0,
         }))
         .sort((a, b) => a.dis - b.dis)
         .map(({ dis, ...a }, index) => ({
@@ -531,6 +611,15 @@ const CustomUi = () => {
             closeOnSelect: true,
             onClick: () => {
               setCrayonEffect(!crayonEffect);
+            },
+          },
+          {
+            id: "arrow-intersection",
+            children: "Arrow - Find Intersection",
+            icon: "ArrowRightIcon",
+            closeOnSelect: true,
+            onClick: () => {
+              getIntersection();
             },
           },
           {
