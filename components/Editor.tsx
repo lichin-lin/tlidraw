@@ -19,6 +19,7 @@ import {
   Tldraw,
 } from "@tldraw/tldraw";
 import { throttle } from "@tldraw/utils";
+import SVGPathCommander, { PathArray } from 'svg-path-commander';
 import "react-cmdk/dist/cmdk.css";
 import imglyRemoveBackground, { Config } from "@imgly/background-removal";
 import CommandPalette, { filterItems, getItemIndex } from "react-cmdk";
@@ -145,13 +146,10 @@ export default function CustomUiExample() {
 
   return (
     <div className="tldraw__editor">
-      <Tldraw store={store} autoFocus hideUi={true}>
-        <TldrawUi>
-          <ContextMenu>
-            <Canvas />
-            <CustomUi />
-          </ContextMenu>
-        </TldrawUi>
+      <Tldraw store={store} autoFocus hideUi={false}>
+        <ContextMenu>
+          <CustomUi />
+        </ContextMenu>
       </Tldraw>
     </div>
   );
@@ -452,17 +450,55 @@ const CustomUi = () => {
   const getIntersection = () => {
     const arrows = editor.selectedShapes.filter(
       (s) =>
-        s.type === "arrow" &&
+        s.type === "arrow"
         // @ts-ignore
-        s.props.start && s.props.start.type === "binding" && s.props.end.type === "binding"
+        // && s.props.start && s.props.start.type === "binding" && s.props.end.type === "binding"
     ) as TLArrowShape[];
 
     if (arrows.length) {
-      const pathData = arrows.map((a) => {
+      arrows.map((a) => {
         const domID = a.id;
-        return document
-          .getElementById(domID)
-          ?.children[1]?.getAttribute("d") as string;
+        const pathContainer = document.getElementById(domID)
+        if (pathContainer) {
+          const path = pathContainer?.children[0].querySelectorAll("g")?.[0]?.children[0] as SVGPathElement;
+          // pathContainer?.children[1] as SVGPathElement;
+
+          let pathLength = Math.floor( path.getTotalLength() );
+          // Get x and y values at a certain point in the line
+          let delta = 2
+          let capPoint = 50
+
+          let prcnt = (capPoint * pathLength) / 100;
+          let ptCenter = path.getPointAtLength(prcnt);
+          ptCenter.x = Math.round(ptCenter.x);
+          ptCenter.y = Math.round(ptCenter.y);
+
+          prcnt = ((capPoint - delta) * pathLength) / 100;
+          let ptPrev = path.getPointAtLength(prcnt);
+          ptPrev.x = Math.round(ptPrev.x);
+          ptPrev.y = Math.round(ptPrev.y);
+
+          prcnt = ((capPoint + delta) * pathLength) / 100;
+          let ptNext = path.getPointAtLength(prcnt);
+          ptNext.x = Math.round(ptNext.x);
+          ptNext.y = Math.round(ptNext.y);
+
+          const pathData = path.getAttribute('d') as string
+          const pathCommand = new SVGPathCommander(pathData)?.segments
+          // ['L', ptPrev.x, ptPrev.y],
+          // ['L', ptCenter.x, ptCenter.y - 5],
+          // ['L', ptNext.x, ptNext.y],
+          const newPath = [
+            pathCommand[0],
+            ['L', ptPrev.x, ptPrev.y],
+            ['C', ptPrev.x, ptPrev.y, ptPrev.x, ptCenter.y - 5, ptCenter.x, ptCenter.y - 5],
+            ['C', ptNext.x, ptPrev.y - 5, ptNext.x, ptNext.y, ptNext.x, ptNext.y],
+            ['L', ptNext.x, ptNext.y],
+            ...pathCommand.slice(1)
+          ] as PathArray
+          const newPathCommandToString = SVGPathCommander.pathToString(newPath);
+          path.setAttribute('d', newPathCommandToString)
+        }
       });
     }
   };
@@ -615,7 +651,7 @@ const CustomUi = () => {
           },
           {
             id: "arrow-intersection",
-            children: "Arrow - Find Intersection",
+            children: "Arrow - Add a cap 🧢",
             icon: "ArrowRightIcon",
             closeOnSelect: true,
             onClick: () => {

@@ -840,6 +840,11 @@
   dependencies:
     tslib "^2.4.0"
 
+"@thednp/dommatrix@^2.0.5":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@thednp/dommatrix/-/dommatrix-2.0.6.tgz#648fa828d1de7e3cb7f0c23f526f804c713a8236"
+  integrity sha512-DXQq4Rs/akYzeXYGkNy3KiJ4JoD8+SYr1QRWTXtAGoZ0+vJcyBt0aeqA1K4CxPaBaIfKdOTE+Te1HV9sAQ4I4A==
+
 "@tldraw/editor@2.0.0-alpha.14":
   version "2.0.0-alpha.14"
   resolved "https://registry.yarnpkg.com/@tldraw/editor/-/editor-2.0.0-alpha.14.tgz#8f676f7a14fd907ce5c001316818718003fb1279"
@@ -3205,6 +3210,13 @@ supports-preserve-symlinks-flag@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/supports-preserve-symlinks-flag/-/supports-preserve-symlinks-flag-1.0.0.tgz#6eda4bd344a3c94aea376d4cc31bc77311039e09"
   integrity sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==
+
+svg-path-commander@^2.0.8:
+  version "2.0.8"
+  resolved "https://registry.yarnpkg.com/svg-path-commander/-/svg-path-commander-2.0.8.tgz#205a4a64258cd3b6e80f3d77c5642184d5ea7d0b"
+  integrity sha512-Yg9CQ8aIt0oeMyCf1WerSLPFIlrDnfAkUEasO6vCGe2NGaz2cb5HrzSAS/EzCh5oS+Q/Ral0I4Szdk+Yb+TeNw==
+  dependencies:
+    "@thednp/dommatrix" "^2.0.5"
 
 synckit@^0.8.5:
   version "0.8.5"
