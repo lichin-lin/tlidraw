@@ -36,3 +36,36 @@ body {
   fill-opacity: 1;
   filter: url(#pencilTexture);
 }
+
+.sticker-panel {
+  background-color: var(--color-panel);
+  border-radius: var(--radius-4);
+  box-shadow: var(--shadow-2);
+  margin: var(--space-3) var(--space-2);
+  overflow-y: auto;
+
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: min-content;
+  padding: 8px;
+}
+
+.sticker-wrapper {
+  background: transparent;
+  border-radius: var(--radius-2);
+  width: calc((200px - 8px - 2 * 8px) / 2);
+  height: calc((200px - 8px - 2 * 8px) / 2);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.sticker-wrapper img {
+  width: 100%;
+  height: auto;
+}
+
+.sticker-wrapper:hover {
+  background: rgba(240, 240, 240, 1);
+}

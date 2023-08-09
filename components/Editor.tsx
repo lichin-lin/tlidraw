@@ -19,13 +19,20 @@ import {
   Tldraw,
 } from "@tldraw/tldraw";
 import { throttle } from "@tldraw/utils";
-import SVGPathCommander, { PathArray } from 'svg-path-commander';
+import SVGPathCommander, { PathArray } from "svg-path-commander";
 import "react-cmdk/dist/cmdk.css";
 import imglyRemoveBackground, { Config } from "@imgly/background-removal";
 import CommandPalette, { filterItems, getItemIndex } from "react-cmdk";
 import { Joystick } from "react-joystick-component";
 import { nanoid } from "nanoid";
 import { useState, useEffect, useLayoutEffect } from "react";
+
+import uk1 from "../public/assets/london01.png";
+import uk2 from "../public/assets/london02.png";
+import uk3 from "../public/assets/london03.png";
+import uk4 from "../public/assets/london04.png";
+import uk5 from "../public/assets/london05.png";
+import uk6 from "../public/assets/london06.png";
 
 type JoystickDirection = "FORWARD" | "RIGHT" | "LEFT" | "BACKWARD";
 type JoystickStatus = "move" | "stop" | "start";
@@ -163,6 +170,8 @@ const CustomUi = () => {
   const [joystickStatus, setJoystickStatus] = useState<JoystickStatus>("stop");
   const [shapeData, setShapeData] = useState<any>([]);
   const [linkedListMode, setLinkedListMode] = useState<boolean>(false);
+  const [showStickerPanel, setShowStickerPanel] = useState<boolean>(true);
+
   const [search, setSearch] = useState("");
   const editor = useEditor();
   const { addToast } = useToasts();
@@ -177,7 +186,7 @@ const CustomUi = () => {
       };
     });
   };
-  const pasteImageUrlsToCanvas = async (urls: string[]) => {
+  const pasteImageUrlsToCanvas = async (urls: string[], data?: any) => {
     // get result + apply to canvas
     const blobs = await Promise.all(
       urls.map(async (url: string) => await (await fetch(url)).blob())
@@ -191,8 +200,8 @@ const CustomUi = () => {
       type: "files",
       files,
       ignoreParent: false,
+      ...data,
     });
-
     urls.forEach((url: string) => URL.revokeObjectURL(url));
   };
   /**
@@ -449,24 +458,24 @@ const CustomUi = () => {
   };
   const getIntersection = () => {
     const arrows = editor.selectedShapes.filter(
-      (s) =>
-        s.type === "arrow"
-        // @ts-ignore
-        // && s.props.start && s.props.start.type === "binding" && s.props.end.type === "binding"
+      (s) => s.type === "arrow"
+      // @ts-ignore
+      // && s.props.start && s.props.start.type === "binding" && s.props.end.type === "binding"
     ) as TLArrowShape[];
 
     if (arrows.length) {
       arrows.map((a) => {
         const domID = a.id;
-        const pathContainer = document.getElementById(domID)
+        const pathContainer = document.getElementById(domID);
         if (pathContainer) {
-          const path = pathContainer?.children[0].querySelectorAll("g")?.[0]?.children[0] as SVGPathElement;
+          const path = pathContainer?.children[0].querySelectorAll("g")?.[0]
+            ?.children[0] as SVGPathElement;
           // pathContainer?.children[1] as SVGPathElement;
 
-          let pathLength = Math.floor( path.getTotalLength() );
+          let pathLength = Math.floor(path.getTotalLength());
           // Get x and y values at a certain point in the line
-          let delta = 2
-          let capPoint = 50
+          let delta = 2;
+          let capPoint = 50;
 
           let prcnt = (capPoint * pathLength) / 100;
           let ptCenter = path.getPointAtLength(prcnt);
@@ -483,21 +492,37 @@ const CustomUi = () => {
           ptNext.x = Math.round(ptNext.x);
           ptNext.y = Math.round(ptNext.y);
 
-          const pathData = path.getAttribute('d') as string
-          const pathCommand = new SVGPathCommander(pathData)?.segments
+          const pathData = path.getAttribute("d") as string;
+          const pathCommand = new SVGPathCommander(pathData)?.segments;
           // ['L', ptPrev.x, ptPrev.y],
           // ['L', ptCenter.x, ptCenter.y - 5],
           // ['L', ptNext.x, ptNext.y],
           const newPath = [
             pathCommand[0],
-            ['L', ptPrev.x, ptPrev.y],
-            ['C', ptPrev.x, ptPrev.y, ptPrev.x, ptCenter.y - 5, ptCenter.x, ptCenter.y - 5],
-            ['C', ptNext.x, ptPrev.y - 5, ptNext.x, ptNext.y, ptNext.x, ptNext.y],
-            ['L', ptNext.x, ptNext.y],
-            ...pathCommand.slice(1)
-          ] as PathArray
+            ["L", ptPrev.x, ptPrev.y],
+            [
+              "C",
+              ptPrev.x,
+              ptPrev.y,
+              ptPrev.x,
+              ptCenter.y - 5,
+              ptCenter.x,
+              ptCenter.y - 5,
+            ],
+            [
+              "C",
+              ptNext.x,
+              ptPrev.y - 5,
+              ptNext.x,
+              ptNext.y,
+              ptNext.x,
+              ptNext.y,
+            ],
+            ["L", ptNext.x, ptNext.y],
+            ...pathCommand.slice(1),
+          ] as PathArray;
           const newPathCommandToString = SVGPathCommander.pathToString(newPath);
-          path.setAttribute('d', newPathCommandToString)
+          path.setAttribute("d", newPathCommandToString);
         }
       });
     }
@@ -544,6 +569,36 @@ const CustomUi = () => {
       editor.updateShapes(_arrows);
     }
   };
+
+  /**
+   * Sticker panel logic
+   */
+  const handleStickerOnSelect = (item: any) => {
+    pasteImageUrlsToCanvas([`${window.location.origin}${item.src}`]);
+  }
+  const handleStickerOnDrag = (e: any, item: any) => {
+    (e as DragEvent).dataTransfer?.setData("text/plain", item.src);
+  };
+  useEffect(() => {
+    const drop = (e: any) => {
+      const data = e.dataTransfer?.getData("text/plain");
+      console.log(data, e.clientX, e.clientY);
+      const newX = e.clientX / editor.camera.z + -1 * editor.camera.x;
+      const newY = e.clientY / editor.camera.z + -1 * editor.camera.y;
+
+      pasteImageUrlsToCanvas([`${window.location.origin}${data}`], {
+        point: { x: newX, y: newY },
+      });
+    };
+    const canvas = document.querySelector(".tl-canvas");
+    canvas?.addEventListener("drop", drop);
+    return () => {
+      canvas?.removeEventListener("drop", drop);
+    };
+  }, []);
+  /**
+   * useEffect
+   */
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.metaKey && e.key === "k") {
@@ -621,6 +676,15 @@ const CustomUi = () => {
           //     console.log("camera!");
           //   },
           // },
+          {
+            id: "stickerPanel",
+            children: "Stickers panel",
+            icon: "FaceSmileIcon",
+            closeOnSelect: true,
+            onClick: () => {
+              setShowStickerPanel(!showStickerPanel);
+            },
+          },
           {
             id: "linkedlist",
             children: "Linked List selection",
@@ -857,6 +921,31 @@ const CustomUi = () => {
             move={handleJoystickMove}
             stop={() => setJoystickStatus("stop")}
           ></Joystick>
+        </div>
+      )}
+      {showStickerPanel && (
+        <div
+          id="sticker-panel"
+          className="sticker-panel"
+          style={{
+            width: 200,
+            height: 300,
+            zIndex: 9999,
+            position: "absolute",
+            left: "12px",
+            top: "60px",
+          }}
+        >
+          {[uk1, uk2, uk3, uk4, uk5, uk6].map((item, id) => (
+            <div className="sticker-wrapper" key={id}>
+              <img
+                src={item.src}
+                draggable="true"
+                onDragStart={(e) => handleStickerOnDrag(e, item)}
+                onClick={(e) => handleStickerOnSelect(item)}
+              />
+            </div>
+          ))}
         </div>
       )}
     </>
