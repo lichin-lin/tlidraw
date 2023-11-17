@@ -107,7 +107,6 @@ export default function CustomUiExample() {
 
     // Get persisted data from local storage
     const persistedSnapshot = localStorage.getItem(PERSISTENCE_KEY);
-    console.log(persistedSnapshot);
 
     if (persistedSnapshot) {
       try {
@@ -170,7 +169,14 @@ const CustomUi = () => {
   const [joystickStatus, setJoystickStatus] = useState<JoystickStatus>("stop");
   const [shapeData, setShapeData] = useState<any>([]);
   const [linkedListMode, setLinkedListMode] = useState<boolean>(false);
-  const [showStickerPanel, setShowStickerPanel] = useState<boolean>(true);
+  const [showStickerPanel, setShowStickerPanel] = useState<boolean>(false);
+
+  // LCM
+  const [LCM, setLCM] = useState<any>();
+  const [isLCMStart, setIsLCMStart] = useState<boolean>(false);
+  const [LCMSeed, setLCMSeed] = useState<number>(
+    Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+  );
 
   const [search, setSearch] = useState("");
   const editor = useEditor();
@@ -532,7 +538,11 @@ const CustomUi = () => {
       (s) =>
         s.type === "arrow" &&
         // @ts-ignore
-        s.props.start && s.props.start.type === "binding" && s.props.end.type === "binding"
+        s.props.start &&
+        // @ts-ignore
+        s.props.start.type === "binding" &&
+        // @ts-ignore
+        s.props.end.type === "binding"
     ) as TLArrowShape[];
     if (arrows.length) {
       const _arrows = arrows
@@ -540,7 +550,9 @@ const CustomUi = () => {
           ...a,
           dis:
             // @ts-ignore
-            (editor?.getShapeById(a.props.start?.boundShapeId)?.y - editor?.getShapeById(a.props.end?.boundShapeId)?.y) **
+            (editor?.getShapeById(a.props.start?.boundShapeId)?.y -
+              // @ts-ignore
+              editor?.getShapeById(a.props.end?.boundShapeId)?.y) **
               2 || 0,
         }))
         .sort((a, b) => a.dis - b.dis)
@@ -575,27 +587,11 @@ const CustomUi = () => {
    */
   const handleStickerOnSelect = (item: any) => {
     pasteImageUrlsToCanvas([`${window.location.origin}${item.src}`]);
-  }
+  };
   const handleStickerOnDrag = (e: any, item: any) => {
     (e as DragEvent).dataTransfer?.setData("text/plain", item.src);
   };
-  useEffect(() => {
-    const drop = (e: any) => {
-      const data = e.dataTransfer?.getData("text/plain");
-      console.log(data, e.clientX, e.clientY);
-      const newX = e.clientX / editor.camera.z + -1 * editor.camera.x;
-      const newY = e.clientY / editor.camera.z + -1 * editor.camera.y;
 
-      pasteImageUrlsToCanvas([`${window.location.origin}${data}`], {
-        point: { x: newX, y: newY },
-      });
-    };
-    const canvas = document.querySelector(".tl-canvas");
-    canvas?.addEventListener("drop", drop);
-    return () => {
-      canvas?.removeEventListener("drop", drop);
-    };
-  }, []);
   /**
    * useEffect
    */
@@ -618,6 +614,169 @@ const CustomUi = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const drop = (e: any) => {
+      const data = e.dataTransfer?.getData("text/plain");
+      console.log(data, e.clientX, e.clientY);
+      const newX = e.clientX / editor.camera.z + -1 * editor.camera.x;
+      const newY = e.clientY / editor.camera.z + -1 * editor.camera.y;
+
+      pasteImageUrlsToCanvas([`${window.location.origin}${data}`], {
+        point: { x: newX, y: newY },
+      });
+    };
+    const canvas = document.querySelector(".tl-canvas");
+    canvas?.addEventListener("drop", drop);
+    return () => {
+      canvas?.removeEventListener("drop", drop);
+    };
+  }, []);
+  // Experiment: latent-consistency-models
+  useEffect(() => {
+    const setUpLCM = async () => {
+      const LCMLive = () => {
+        let websocket: WebSocket;
+
+        async function start() {
+          return new Promise((resolve, reject) => {
+            // you will need to setup LCM backend, by using tihs repo:
+            // https://github.com/radames/Real-Time-Latent-Consistency-Model
+            const websocketURL = `ws:localhost:7860/ws`;
+
+            const socket = new WebSocket(websocketURL);
+            socket.onopen = () => {
+              console.log("Connected to websocket");
+            };
+            socket.onclose = () => {
+              console.log("Disconnected from websocket");
+              stop();
+              resolve({ status: "disconnected" });
+            };
+            socket.onerror = (err) => {
+              console.error(err);
+              reject(err);
+            };
+            socket.onmessage = (event) => {
+              const data = JSON.parse(event.data);
+              switch (data.status) {
+                case "success":
+                  break;
+                case "start":
+                  const userId = data.userId;
+                  const liveImage = document.querySelector(
+                    "#lcm-output"
+                  ) as HTMLImageElement;
+                  if (liveImage) {
+                    liveImage.src = `http://localhost:7860/stream/${userId}`;
+                  }
+                  setInterval(async () => {
+                    console.log("send out data...");
+                    const frame = editor.shapesArray.filter(
+                      (s) => s.type === "frame"
+                    )?.[0] as TLFrameShape;
+                    if (!frame) {
+                      const id = `shape:${nanoid()}` as TLShapeId;
+                      editor.createShapes([
+                        {
+                          id: id,
+                          type: "frame",
+                          x: 0,
+                          y: 0,
+                          props: {
+                            name: "Van Gogh style, Nature, flower and stars",
+                            w: 200,
+                            h: 200,
+                          },
+                        },
+                      ]);
+                    }
+
+                    // turn frame and its content into png image
+                    const svg = await editor.getSvg([frame.id], {
+                      scale: 1,
+                      background: editor.instanceState.exportBackground,
+                    });
+                    if (!svg) throw new Error("Could not construct SVG.");
+                    const pngImageBlob = await getSvgAsImage(svg, {
+                      type: "png",
+                      quality: 1,
+                      scale: 1,
+                    });
+                    if (!pngImageBlob) return;
+
+                    async function convertBlobToJPEG(imageBlob: any) {
+                      return new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => {
+                          const canvas = document.createElement("canvas");
+                          const ctx = canvas.getContext("2d");
+                          canvas.width = img.width;
+                          canvas.height = img.height;
+                          ctx!.drawImage(img, 0, 0);
+                          canvas.toBlob(
+                            (jpegBlob) => {
+                              resolve(jpegBlob);
+                            },
+                            "image/jpeg",
+                            1
+                          );
+                        };
+
+                        img.onerror = (error) => {
+                          reject(error);
+                        };
+
+                        img.src = URL.createObjectURL(imageBlob);
+                      });
+                    }
+
+                    // because of the limitation from server side (only accept image with jpeg format)
+                    // we will need to turn png into jpeg format
+                    const jpegBlob = (await convertBlobToJPEG(
+                      pngImageBlob
+                    )) as Blob;
+
+                    // send to server
+                    const data = JSON.stringify({
+                      seed: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER), // LCMSeed,
+                      prompt: `${frame.props.name}`,
+                      guidance_scale: 8,
+                      strength: 0.5,
+                      steps: 10,
+                      lcm_steps: 50,
+                      width: Math.floor(frame.props.w),
+                      height: Math.floor(frame.props.h),
+                    });
+                    websocket.send(jpegBlob);
+                    websocket.send(data);
+                  }, 3000);
+                  break;
+                case "timeout":
+                  stop();
+                  resolve({ status: "timeout" });
+                case "error":
+                  stop();
+                  reject(data.message);
+              }
+            };
+            websocket = socket;
+          });
+        }
+
+        async function stop() {
+          websocket.close();
+        }
+        return {
+          start,
+          stop,
+        };
+      };
+      const lcmLive = LCMLive();
+      setLCM(lcmLive);
+    };
+    setUpLCM();
+  }, []);
+
   // https://heroicons.com/
   const filteredItems = filterItems(
     [
@@ -634,15 +793,21 @@ const CustomUi = () => {
               handleSummarizer();
             },
           },
-          // {
-          //   id: "text2img",
-          //   children: "Notes to Tile Image",
-          //   icon: "SparklesIcon",
-          //   closeOnSelect: true,
-          //   onClick: () => {
-          //     handleText2Image();
-          //   },
-          // },
+          {
+            id: "img2img",
+            children: "fast diffusion (Latent Consistency Model)",
+            icon: "SparklesIcon",
+            closeOnSelect: true,
+            onClick: async () => {
+              if (!isLCMStart) {
+                LCM.start();
+                setIsLCMStart(true);
+              } else {
+                LCM.stop();
+                setIsLCMStart(false);
+              }
+            },
+          },
           {
             id: "doodle2img",
             children: "Doodle to Image",
@@ -737,6 +902,7 @@ const CustomUi = () => {
     search
   );
 
+  // joy sticker
   useEffect(() => {
     const interval = setInterval(() => {
       if (showJoystick) {
@@ -788,7 +954,7 @@ const CustomUi = () => {
       clearInterval(interval);
     };
   }, [editor, joystickStatus]);
-
+  // linked list
   useEffect(() => {
     const interval = setInterval(() => {
       if (linkedListMode) {
@@ -921,6 +1087,38 @@ const CustomUi = () => {
             move={handleJoystickMove}
             stop={() => setJoystickStatus("stop")}
           ></Joystick>
+        </div>
+      )}
+      {isLCMStart && (
+        <div
+          style={{
+            gap: 2,
+            display: "flex",
+            flexDirection: "column",
+            width: "fit-content",
+            height: "fit-content",
+            position: "absolute",
+            right: "20px",
+            bottom: "120px",
+            zIndex: 9999,
+          }}
+        >
+          <img
+            id="lcm-output"
+            style={{
+              width: 300,
+              height: 300,
+              border: "1px solid #333",
+              borderRadius: 2,
+            }}
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+          />
+          <input
+            value={LCMSeed}
+            // onChange={(e) => setLCMSeed(parseInt(e.target.value) || 1)}
+            style={{ width: 200 }}
+            placeholder="seed"
+          />
         </div>
       )}
       {showStickerPanel && (
