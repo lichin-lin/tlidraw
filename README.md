@@ -18,7 +18,7 @@ Here are some AI/Editing concept I am exploring, trigger different kinds of expe
 
 #### 1. AI: Fast diffusion (Latent Consistency Model) [🔗](https://x.com/lichinlin/status/1725560340174282792?s=20)
 
-1. You will need a real-time Latent Consistency Model python server (from ) for this experiment. follow the [instruction](https://github.com/radames/Real-Time-Latent-Consistency-Model) and setup the backend service.
+1. You will need a real-time Latent Consistency Model python server (from ) for this experiment. follow the [instruction](https://github.com/radames/Real-Time-Latent-Consistency-Model) and setup the backend service (you will need to do a `git checkout ee4d659` to specifc version of the project).
 2. Toggle the Command Menu (cmd + k) and select _Fast diffusion (Latent Consistency Model)_ to start the function
 3. Try to draw an illustration inside the frame. the UI will send the doodle + frame name (as the prompt) to the backend to generate the result
 
